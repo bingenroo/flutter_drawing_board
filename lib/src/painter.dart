@@ -6,16 +6,20 @@ import '../paint_contents.dart';
 import 'drawing_controller.dart';
 import 'helper/ex_value_builder.dart';
 import 'paint_contents/paint_content.dart';
+import 'dart:async';
 
 /// 绘图板
 class Painter extends StatelessWidget {
-  const Painter({
+  final void Function(Offset?)?
+      onHoldAfterDraw; // NEW: Callback for hold after draw
+  Painter({
     super.key,
     required this.drawingController,
     this.clipBehavior = Clip.antiAlias,
     this.onPointerDown,
     this.onPointerMove,
     this.onPointerUp,
+    this.onHoldAfterDraw, // NEW
   });
 
   /// 绘制控制器
@@ -33,13 +37,29 @@ class Painter extends StatelessWidget {
   /// 边缘裁剪方式
   final Clip clipBehavior;
 
+  Timer? _holdTimer; // NEW
+  Offset? _lastPointerDownPosition; // NEW
+  bool _snappedToStraight = false; // NEW
+  static const double _snapHoldDuration = 0.5; // seconds
+  static const double _snapMoveTolerance = 8.0; // px
+
   /// 手指落下
   void _onPointerDown(PointerDownEvent pde) {
+    _holdTimer?.cancel();
+    _snappedToStraight = false;
+    _lastPointerDownPosition = pde.localPosition;
     if (!drawingController.couldStartDraw) {
       return;
     }
-
     drawingController.startDraw(pde.localPosition);
+    // Start hold timer for snapping
+    _holdTimer =
+        Timer(Duration(milliseconds: (_snapHoldDuration * 1000).toInt()), () {
+      if (!_snappedToStraight && _lastPointerDownPosition != null) {
+        drawingController.snapCurrentToStraightLine(_lastPointerDownPosition!);
+        _snappedToStraight = true;
+      }
+    });
     onPointerDown?.call(pde);
   }
 
@@ -49,37 +69,64 @@ class Painter extends StatelessWidget {
       if (drawingController.hasPaintingContent) {
         drawingController.endDraw();
       }
-
       return;
     }
-
     if (!drawingController.hasPaintingContent) {
       return;
     }
-
-    drawingController.drawing(pme.localPosition);
+    // If not snapped, check movement
+    if (!_snappedToStraight && _lastPointerDownPosition != null) {
+      final dist = (pme.localPosition - _lastPointerDownPosition!).distance;
+      if (dist > _snapMoveTolerance) {
+        // Too much movement, reset timer
+        _holdTimer?.cancel();
+        _lastPointerDownPosition = pme.localPosition;
+        _holdTimer = Timer(
+            Duration(milliseconds: (_snapHoldDuration * 1000).toInt()), () {
+          if (!_snappedToStraight && _lastPointerDownPosition != null) {
+            drawingController
+                .snapCurrentToStraightLine(_lastPointerDownPosition!);
+            _snappedToStraight = true;
+          }
+        });
+      }
+    }
+    // If snapped, update straight line end point
+    if (_snappedToStraight) {
+      if (drawingController.currentContent is StraightLine) {
+        (drawingController.currentContent as StraightLine).endPoint =
+            pme.localPosition;
+        drawingController.notifyListeners();
+      }
+    } else {
+      drawingController.drawing(pme.localPosition);
+    }
     onPointerMove?.call(pme);
   }
 
   /// 手指抬起
   void _onPointerUp(PointerUpEvent pue) {
-    if (!drawingController.couldDrawing || !drawingController.hasPaintingContent) {
+    _holdTimer?.cancel();
+    _snappedToStraight = false;
+    _lastPointerDownPosition = null;
+    if (!drawingController.couldDrawing ||
+        !drawingController.hasPaintingContent) {
       return;
     }
-
     if (drawingController.startPoint == pue.localPosition) {
       drawingController.drawing(pue.localPosition);
     }
-
     drawingController.endDraw();
     onPointerUp?.call(pue);
   }
 
   void _onPointerCancel(PointerCancelEvent pce) {
+    _holdTimer?.cancel();
+    _snappedToStraight = false;
+    _lastPointerDownPosition = null;
     if (!drawingController.couldDrawing) {
       return;
     }
-
     drawingController.endDraw();
   }
 
@@ -100,7 +147,8 @@ class Painter extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       child: ExValueBuilder<DrawConfig>(
         valueListenable: drawingController.drawConfig,
-        shouldRebuild: (DrawConfig p, DrawConfig n) => p.fingerCount != n.fingerCount,
+        shouldRebuild: (DrawConfig p, DrawConfig n) =>
+            p.fingerCount != n.fingerCount,
         builder: (_, DrawConfig config, Widget? child) {
           // 是否能拖动画布
           final bool isPanEnabled = config.fingerCount > 1;
@@ -164,7 +212,8 @@ class _UpPainter extends CustomPainter {
 
 /// 底层画板
 class _DeepPainter extends CustomPainter {
-  _DeepPainter({required this.controller}) : super(repaint: controller.realPainter);
+  _DeepPainter({required this.controller})
+      : super(repaint: controller.realPainter);
   final DrawingController controller;
 
   @override
@@ -183,8 +232,8 @@ class _DeepPainter extends CustomPainter {
     }
 
     final ui.PictureRecorder recorder = ui.PictureRecorder();
-    final Canvas tempCanvas =
-        Canvas(recorder, Rect.fromPoints(Offset.zero, size.bottomRight(Offset.zero)));
+    final Canvas tempCanvas = Canvas(
+        recorder, Rect.fromPoints(Offset.zero, size.bottomRight(Offset.zero)));
 
     canvas.saveLayer(Offset.zero & size, Paint());
 
@@ -196,7 +245,9 @@ class _DeepPainter extends CustomPainter {
     canvas.restore();
 
     final ui.Picture picture = recorder.endRecording();
-    picture.toImage(size.width.toInt(), size.height.toInt()).then((ui.Image value) {
+    picture
+        .toImage(size.width.toInt(), size.height.toInt())
+        .then((ui.Image value) {
       controller.cachedImage = value;
     });
   }

@@ -7,6 +7,7 @@ import 'helper/safe_value_notifier.dart';
 import 'paint_contents/eraser.dart';
 import 'paint_contents/paint_content.dart';
 import 'paint_contents/simple_line.dart';
+import 'paint_contents/straight_line.dart';
 import 'paint_extension/ex_paint.dart';
 
 /// 绘制参数
@@ -139,7 +140,8 @@ class DrawingController extends ChangeNotifier {
     _currentIndex = 0;
     realPainter = RePaintNotifier();
     painter = RePaintNotifier();
-    drawConfig = SafeValueNotifier<DrawConfig>(config ?? DrawConfig.def(contentType: SimpleLine));
+    drawConfig = SafeValueNotifier<DrawConfig>(
+        config ?? DrawConfig.def(contentType: SimpleLine));
     setPaintContent(content ?? SimpleLine());
   }
 
@@ -197,7 +199,8 @@ class DrawingController extends ChangeNotifier {
   bool get couldDrawing => drawConfig.value.fingerCount == 1;
 
   /// 是否有正在绘制的内容
-  bool get hasPaintingContent => currentContent != null || eraserContent != null;
+  bool get hasPaintingContent =>
+      currentContent != null || eraserContent != null;
 
   /// 开始绘制点
   Offset? get startPoint => _startPoint;
@@ -209,7 +212,8 @@ class DrawingController extends ChangeNotifier {
 
   /// 手指落下
   void addFingerCount(Offset offset) {
-    drawConfig.value = drawConfig.value.copyWith(fingerCount: drawConfig.value.fingerCount + 1);
+    drawConfig.value = drawConfig.value
+        .copyWith(fingerCount: drawConfig.value.fingerCount + 1);
   }
 
   /// 手指抬起
@@ -218,7 +222,8 @@ class DrawingController extends ChangeNotifier {
       return;
     }
 
-    drawConfig.value = drawConfig.value.copyWith(fingerCount: drawConfig.value.fingerCount - 1);
+    drawConfig.value = drawConfig.value
+        .copyWith(fingerCount: drawConfig.value.fingerCount - 1);
   }
 
   /// 设置绘制样式
@@ -259,7 +264,8 @@ class DrawingController extends ChangeNotifier {
   void setPaintContent(PaintContent content) {
     content.paint = drawConfig.value.paint;
     _paintContent = content;
-    drawConfig.value = drawConfig.value.copyWith(contentType: content.runtimeType);
+    drawConfig.value =
+        drawConfig.value.copyWith(contentType: content.runtimeType);
   }
 
   /// 添加一条绘制数据
@@ -281,7 +287,8 @@ class DrawingController extends ChangeNotifier {
   /// * 旋转画布
   /// * 设置角度
   void turn() {
-    drawConfig.value = drawConfig.value.copyWith(angle: (drawConfig.value.angle + 1) % 4);
+    drawConfig.value =
+        drawConfig.value.copyWith(angle: (drawConfig.value.angle + 1) % 4);
   }
 
   /// 开始绘制
@@ -418,10 +425,10 @@ class DrawingController extends ChangeNotifier {
   /// 获取图片数据
   Future<ByteData?> getImageData() async {
     try {
-      final RenderRepaintBoundary boundary =
-          painterKey.currentContext!.findRenderObject()! as RenderRepaintBoundary;
-      final ui.Image image =
-          await boundary.toImage(pixelRatio: View.of(painterKey.currentContext!).devicePixelRatio);
+      final RenderRepaintBoundary boundary = painterKey.currentContext!
+          .findRenderObject()! as RenderRepaintBoundary;
+      final ui.Image image = await boundary.toImage(
+          pixelRatio: View.of(painterKey.currentContext!).devicePixelRatio);
       return await image.toByteData(format: ui.ImageByteFormat.png);
     } catch (e) {
       debugPrint('获取图片数据出错:$e');
@@ -471,6 +478,88 @@ class DrawingController extends ChangeNotifier {
     _mounted = false;
 
     super.dispose();
+  }
+
+  // Improved: Replace last SimpleLine with StraightLine if hold is near end point
+  void replaceLastSimpleLineWithStraightLine(
+      {Offset? holdPosition, double tolerance = 20.0}) {
+    if (_history.isNotEmpty && _history.last is SimpleLine) {
+      final SimpleLine last = _history.last as SimpleLine;
+      final pathMetrics = last.path.path.computeMetrics();
+      // Extract points from the path
+      final List<Offset> points = [];
+      for (final metric in pathMetrics) {
+        for (double d = 0; d < metric.length; d += 1.0) {
+          points.add(metric.getTangentForOffset(d)!.position);
+        }
+      }
+      // Debug print
+      print('SimpleLine: points.length =  [33m${points.length}\u001b[0m');
+      if (points.isNotEmpty) {
+        print('Start: ${points.first}, End: ${points.last}');
+      }
+      Offset? start;
+      Offset? end;
+      if (points.length >= 2) {
+        start = points.first;
+        end = points.last;
+      } else if (last.path.path.getBounds().isFinite) {
+        // Fallback: use bounds if available
+        start = last.path.path.getBounds().topLeft;
+        end = last.path.path.getBounds().bottomRight;
+        print('Fallback to bounds: Start: $start, End: $end');
+      }
+      if (start == null || end == null) return;
+      // Check tolerance
+      if (holdPosition != null && (holdPosition - end).distance > tolerance) {
+        print(
+            'Hold position too far from end: ${(holdPosition - end).distance} > $tolerance');
+        return;
+      }
+      if ((start - end).distance < 2.0) {
+        print('Line too short to snap');
+        return; // Ignore if too short
+      }
+      final straight = StraightLine.data(
+        startPoint: start,
+        endPoint: end,
+        paint: last.paint,
+      );
+      _history.removeLast();
+      _history.add(straight);
+      _refresh();
+      _refreshDeep();
+      notifyListeners();
+      print('Snapped to straight line!');
+    }
+  }
+
+  // NEW: Check if last drawn was SimpleLine
+  bool lastDrawnWasSimpleLine() {
+    return _history.isNotEmpty && _history.last is SimpleLine;
+  }
+
+  // Swap currentContent from SimpleLine to StraightLine during drawing
+  void snapCurrentToStraightLine(Offset currentPointer) {
+    if (currentContent is SimpleLine) {
+      final SimpleLine line = currentContent as SimpleLine;
+      // Try to get the start point from the path
+      Offset? start;
+      final pathMetrics = line.path.path.computeMetrics();
+      for (final metric in pathMetrics) {
+        start = metric.getTangentForOffset(0)?.position;
+        break;
+      }
+      start ??= line.path.path.getBounds().topLeft;
+      if (start == null) return;
+      final straight = StraightLine.data(
+        startPoint: start,
+        endPoint: currentPointer,
+        paint: line.paint,
+      );
+      currentContent = straight;
+      _refresh();
+    }
   }
 }
 

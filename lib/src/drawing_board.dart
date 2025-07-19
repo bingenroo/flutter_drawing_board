@@ -91,7 +91,8 @@ class DrawingBoard extends StatefulWidget {
   final AlignmentGeometry alignment;
 
   /// 默认工具项列表
-  static List<DefToolItem> defaultTools(Type currType, DrawingController controller) {
+  static List<DefToolItem> defaultTools(
+      Type currType, DrawingController controller) {
     return <DefToolItem>[
       DefToolItem(
         isActive: currType == SimpleLine,
@@ -147,7 +148,8 @@ class DrawingBoard extends StatefulWidget {
 }
 
 class _DrawingBoardState extends State<DrawingBoard> {
-  late final DrawingController _controller = widget.controller ?? DrawingController();
+  late final DrawingController _controller =
+      widget.controller ?? DrawingController();
 
   @override
   void dispose() {
@@ -162,8 +164,8 @@ class _DrawingBoardState extends State<DrawingBoard> {
     Widget content = InteractiveViewer(
       maxScale: widget.maxScale,
       minScale: widget.minScale,
-      boundaryMargin:
-          widget.boardBoundaryMargin ?? EdgeInsets.all(MediaQuery.of(context).size.width),
+      boundaryMargin: widget.boardBoundaryMargin ??
+          EdgeInsets.all(MediaQuery.of(context).size.width),
       clipBehavior: widget.boardClipBehavior,
       panAxis: widget.panAxis,
       constrained: widget.boardConstrained,
@@ -183,15 +185,19 @@ class _DrawingBoardState extends State<DrawingBoard> {
           Expanded(child: content),
           if (widget.showDefaultActions) buildDefaultActions(_controller),
           if (widget.showDefaultTools)
-            buildDefaultTools(_controller, defaultToolsBuilder: widget.defaultToolsBuilder),
+            buildDefaultTools(_controller,
+                defaultToolsBuilder: widget.defaultToolsBuilder),
         ],
       );
     }
 
     return Listener(
-      onPointerDown: (PointerDownEvent pde) => _controller.addFingerCount(pde.localPosition),
-      onPointerUp: (PointerUpEvent pue) => _controller.reduceFingerCount(pue.localPosition),
-      onPointerCancel: (PointerCancelEvent pce) => _controller.reduceFingerCount(pce.localPosition),
+      onPointerDown: (PointerDownEvent pde) =>
+          _controller.addFingerCount(pde.localPosition),
+      onPointerUp: (PointerUpEvent pue) =>
+          _controller.reduceFingerCount(pue.localPosition),
+      onPointerCancel: (PointerCancelEvent pce) =>
+          _controller.reduceFingerCount(pce.localPosition),
       child: content,
     );
   }
@@ -200,7 +206,8 @@ class _DrawingBoardState extends State<DrawingBoard> {
   Widget get _buildBoard {
     return ExValueBuilder<DrawConfig>(
       valueListenable: _controller.drawConfig,
-      shouldRebuild: (DrawConfig p, DrawConfig n) => p.angle != n.angle || p.size != n.size,
+      shouldRebuild: (DrawConfig p, DrawConfig n) =>
+          p.angle != n.angle || p.size != n.size,
       builder: (_, DrawConfig dc, Widget? child) {
         Widget c = child ?? const SizedBox.shrink();
 
@@ -218,29 +225,37 @@ class _DrawingBoardState extends State<DrawingBoard> {
       child: Center(
         child: RepaintBoundary(
           key: _controller.painterKey,
-          child: Stack(alignment: Alignment.center, children: <Widget>[_buildImage, _buildPainter]),
+          child: Stack(
+              alignment: Alignment.center,
+              children: <Widget>[_buildImage, _buildPainter]),
         ),
       ),
     );
   }
 
   /// 构建背景
-  Widget get _buildImage =>
-      GetSize(onChange: (Size? size) => _controller.setBoardSize(size), child: widget.background);
+  Widget get _buildImage => GetSize(
+      onChange: (Size? size) => _controller.setBoardSize(size),
+      child: widget.background);
 
   /// 构建绘制层
   Widget get _buildPainter {
     return ExValueBuilder<DrawConfig>(
       valueListenable: _controller.drawConfig,
-      shouldRebuild: (DrawConfig p, DrawConfig n) => p.size != n.size,
+      shouldRebuild: (DrawConfig dc, DrawConfig n) => dc.size != n.size,
       builder: (_, DrawConfig dc, Widget? child) {
-        return SizedBox(width: dc.size?.width, height: dc.size?.height, child: child);
+        return SizedBox(
+            width: dc.size?.width, height: dc.size?.height, child: child);
       },
       child: Painter(
         drawingController: _controller,
         onPointerDown: widget.onPointerDown,
         onPointerMove: widget.onPointerMove,
         onPointerUp: widget.onPointerUp,
+        onHoldAfterDraw: (Offset? holdPosition) {
+          _controller.replaceLastSimpleLineWithStraightLine(
+              holdPosition: holdPosition, tolerance: 20.0);
+        },
       ),
     );
   }
@@ -264,7 +279,8 @@ class _DrawingBoardState extends State<DrawingBoard> {
                     value: dc.strokeWidth,
                     max: 50,
                     min: 1,
-                    onChanged: (double v) => controller.setStyle(strokeWidth: v),
+                    onChanged: (double v) =>
+                        controller.setStyle(strokeWidth: v),
                   ),
                 ),
                 IconButton(
@@ -310,16 +326,20 @@ class _DrawingBoardState extends State<DrawingBoard> {
         padding: EdgeInsets.zero,
         child: ExValueBuilder<DrawConfig>(
           valueListenable: controller.drawConfig,
-          shouldRebuild: (DrawConfig p, DrawConfig n) => p.contentType != n.contentType,
+          shouldRebuild: (DrawConfig p, DrawConfig n) =>
+              p.contentType != n.contentType,
           builder: (_, DrawConfig dc, ___) {
             final Type currType = dc.contentType;
 
-            final List<Widget> children = (defaultToolsBuilder?.call(currType, controller) ??
-                    DrawingBoard.defaultTools(currType, controller))
-                .map((DefToolItem item) => _DefToolItemWidget(item: item))
-                .toList();
+            final List<Widget> children =
+                (defaultToolsBuilder?.call(currType, controller) ??
+                        DrawingBoard.defaultTools(currType, controller))
+                    .map((DefToolItem item) => _DefToolItemWidget(item: item))
+                    .toList();
 
-            return axis == Axis.horizontal ? Row(children: children) : Column(children: children);
+            return axis == Axis.horizontal
+                ? Row(children: children)
+                : Column(children: children);
           },
         ),
       ),
