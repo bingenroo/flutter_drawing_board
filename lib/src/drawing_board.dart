@@ -16,9 +16,7 @@ import 'painter.dart';
 
 /// 默认工具栏构建器
 typedef DefaultToolsBuilder = List<DefToolItem> Function(
-  Type currType,
-  DrawingController controller,
-);
+    Type currType, DrawingController controller);
 
 /// 画板
 class DrawingBoard extends StatefulWidget {
@@ -96,29 +94,35 @@ class DrawingBoard extends StatefulWidget {
   static List<DefToolItem> defaultTools(Type currType, DrawingController controller) {
     return <DefToolItem>[
       DefToolItem(
-          isActive: currType == SimpleLine,
-          icon: Icons.edit,
-          onTap: () => controller.setPaintContent(SimpleLine())),
+        isActive: currType == SimpleLine,
+        icon: Icons.edit,
+        onTap: () => controller.setPaintContent(SimpleLine()),
+      ),
       DefToolItem(
-          isActive: currType == SmoothLine,
-          icon: Icons.brush,
-          onTap: () => controller.setPaintContent(SmoothLine())),
+        isActive: currType == SmoothLine,
+        icon: Icons.brush,
+        onTap: () => controller.setPaintContent(SmoothLine()),
+      ),
       DefToolItem(
-          isActive: currType == StraightLine,
-          icon: Icons.show_chart,
-          onTap: () => controller.setPaintContent(StraightLine())),
+        isActive: currType == StraightLine,
+        icon: Icons.show_chart,
+        onTap: () => controller.setPaintContent(StraightLine()),
+      ),
       DefToolItem(
-          isActive: currType == Rectangle,
-          icon: CupertinoIcons.stop,
-          onTap: () => controller.setPaintContent(Rectangle())),
+        isActive: currType == Rectangle,
+        icon: CupertinoIcons.stop,
+        onTap: () => controller.setPaintContent(Rectangle()),
+      ),
       DefToolItem(
-          isActive: currType == Circle,
-          icon: CupertinoIcons.circle,
-          onTap: () => controller.setPaintContent(Circle())),
+        isActive: currType == Circle,
+        icon: CupertinoIcons.circle,
+        onTap: () => controller.setPaintContent(Circle()),
+      ),
       DefToolItem(
-          isActive: currType == Eraser,
-          icon: CupertinoIcons.bandage,
-          onTap: () => controller.setPaintContent(Eraser())),
+        isActive: currType == Eraser,
+        icon: CupertinoIcons.bandage,
+        onTap: () => controller.setPaintContent(Eraser()),
+      ),
     ];
   }
 
@@ -126,10 +130,16 @@ class DrawingBoard extends StatefulWidget {
     return _DrawingBoardState.buildDefaultActions(controller);
   }
 
-  static Widget buildDefaultTools(DrawingController controller,
-      {DefaultToolsBuilder? defaultToolsBuilder, Axis axis = Axis.horizontal}) {
-    return _DrawingBoardState.buildDefaultTools(controller,
-        defaultToolsBuilder: defaultToolsBuilder, axis: axis);
+  static Widget buildDefaultTools(
+    DrawingController controller, {
+    DefaultToolsBuilder? defaultToolsBuilder,
+    Axis axis = Axis.horizontal,
+  }) {
+    return _DrawingBoardState.buildDefaultTools(
+      controller,
+      defaultToolsBuilder: defaultToolsBuilder,
+      axis: axis,
+    );
   }
 
   @override
@@ -192,7 +202,7 @@ class _DrawingBoardState extends State<DrawingBoard> {
       valueListenable: _controller.drawConfig,
       shouldRebuild: (DrawConfig p, DrawConfig n) => p.angle != n.angle || p.size != n.size,
       builder: (_, DrawConfig dc, Widget? child) {
-        Widget c = child!;
+        Widget c = child ?? const SizedBox.shrink();
 
         if (dc.size != null) {
           final bool isHorizontal = dc.angle.toDouble() % 2 == 0;
@@ -208,20 +218,15 @@ class _DrawingBoardState extends State<DrawingBoard> {
       child: Center(
         child: RepaintBoundary(
           key: _controller.painterKey,
-          child: Stack(
-            alignment: Alignment.center,
-            children: <Widget>[_buildImage, _buildPainter],
-          ),
+          child: Stack(alignment: Alignment.center, children: <Widget>[_buildImage, _buildPainter]),
         ),
       ),
     );
   }
 
   /// 构建背景
-  Widget get _buildImage => GetSize(
-        onChange: (Size? size) => _controller.setBoardSize(size),
-        child: widget.background,
-      );
+  Widget get _buildImage =>
+      GetSize(onChange: (Size? size) => _controller.setBoardSize(size), child: widget.background);
 
   /// 构建绘制层
   Widget get _buildPainter {
@@ -229,11 +234,7 @@ class _DrawingBoardState extends State<DrawingBoard> {
       valueListenable: _controller.drawConfig,
       shouldRebuild: (DrawConfig p, DrawConfig n) => p.size != n.size,
       builder: (_, DrawConfig dc, Widget? child) {
-        return SizedBox(
-          width: dc.size?.width,
-          height: dc.size?.height,
-          child: child,
-        );
+        return SizedBox(width: dc.size?.width, height: dc.size?.height, child: child);
       },
       child: Painter(
         drawingController: _controller,
@@ -252,44 +253,46 @@ class _DrawingBoardState extends State<DrawingBoard> {
         scrollDirection: Axis.horizontal,
         padding: EdgeInsets.zero,
         child: ExValueBuilder<DrawConfig>(
-            valueListenable: controller.drawConfig,
-            builder: (_, DrawConfig dc, ___) {
-              return Row(
-                children: <Widget>[
-                  SizedBox(
-                    height: 24,
-                    width: 160,
-                    child: Slider(
-                      value: dc.strokeWidth,
-                      max: 50,
-                      min: 1,
-                      onChanged: (double v) => controller.setStyle(strokeWidth: v),
-                    ),
+          valueListenable: controller.drawConfig,
+          builder: (_, DrawConfig dc, ___) {
+            return Row(
+              children: <Widget>[
+                SizedBox(
+                  height: 24,
+                  width: 160,
+                  child: Slider(
+                    value: dc.strokeWidth,
+                    max: 50,
+                    min: 1,
+                    onChanged: (double v) => controller.setStyle(strokeWidth: v),
                   ),
-                  IconButton(
-                    icon: Icon(
-                      CupertinoIcons.arrow_turn_up_left,
-                      color: controller.canUndo() ? null : Colors.grey,
-                    ),
-                    onPressed: () => controller.undo(),
+                ),
+                IconButton(
+                  icon: Icon(
+                    CupertinoIcons.arrow_turn_up_left,
+                    color: controller.canUndo() ? null : Colors.grey,
                   ),
-                  IconButton(
-                    icon: Icon(
-                      CupertinoIcons.arrow_turn_up_right,
-                      color: controller.canRedo() ? null : Colors.grey,
-                    ),
-                    onPressed: () => controller.redo(),
+                  onPressed: () => controller.undo(),
+                ),
+                IconButton(
+                  icon: Icon(
+                    CupertinoIcons.arrow_turn_up_right,
+                    color: controller.canRedo() ? null : Colors.grey,
                   ),
-                  IconButton(
-                      icon: const Icon(CupertinoIcons.rotate_right),
-                      onPressed: () => controller.turn()),
-                  IconButton(
-                    icon: const Icon(CupertinoIcons.trash),
-                    onPressed: () => controller.clear(),
-                  ),
-                ],
-              );
-            }),
+                  onPressed: () => controller.redo(),
+                ),
+                IconButton(
+                  icon: const Icon(CupertinoIcons.rotate_right),
+                  onPressed: () => controller.turn(),
+                ),
+                IconButton(
+                  icon: const Icon(CupertinoIcons.trash),
+                  onPressed: () => controller.clear(),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -346,9 +349,7 @@ class DefToolItem {
 
 /// 默认工具项 Widget
 class _DefToolItemWidget extends StatelessWidget {
-  const _DefToolItemWidget({
-    required this.item,
-  });
+  const _DefToolItemWidget({required this.item});
 
   final DefToolItem item;
 
