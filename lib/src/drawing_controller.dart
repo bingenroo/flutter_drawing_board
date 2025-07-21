@@ -332,6 +332,7 @@ class DrawingController extends ChangeNotifier {
       currentContent?.drawing(nowPaint);
       _refresh();
     }
+    notifyListeners(); // <-- Added for real-time updates
   }
 
   /// 结束绘制
